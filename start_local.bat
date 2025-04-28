@@ -4,23 +4,23 @@ echo     Iniciando YouTube Downloader
 echo =====================================
 echo.
 
-REM Ir para o diretório do script
+REM 
 cd /d %~dp0
 
-REM Verificar se o ambiente virtual já existe
+REM 
 IF NOT EXIST "venv" (
     echo Ambiente virtual não encontrado. Criando novo ambiente...
     python -m venv venv
 )
 
-REM Ativar o ambiente virtual
+REM 
 call venv\Scripts\activate
 
-REM Instalar dependências
+REM 
 echo Instalando dependências...
 pip install -r requirements.txt
 
-REM Rodar o Streamlit App
+REM 
 echo Iniciando o aplicativo...
 streamlit run app.py
 

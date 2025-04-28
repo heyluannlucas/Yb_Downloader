@@ -1,13 +1,14 @@
+import subprocess
+import re
 import os
-import platform
-import shutil
-import tempfile
 import requests
 import zipfile
-from yt_dlp import YoutubeDL
+import tempfile
+import shutil
+import glob
+import platform
 
 def garantir_ffmpeg_portatil():
-    """Garante que o ffmpeg esteja disponível no PATH."""
     if shutil.which("ffmpeg"):
         return
 
@@ -15,8 +16,8 @@ def garantir_ffmpeg_portatil():
     if sistema == "Windows":
         tools_dir = os.path.join(os.getcwd(), "tools")
         os.makedirs(tools_dir, exist_ok=True)
-        ffmpeg_exe = os.path.join(tools_dir, "ffmpeg.exe")
 
+        ffmpeg_exe = os.path.join(tools_dir, "ffmpeg.exe")
         if os.path.exists(ffmpeg_exe):
             os.environ["PATH"] += os.pathsep + tools_dir
             return
@@ -34,71 +35,165 @@ def garantir_ffmpeg_portatil():
                 if member.endswith("ffmpeg.exe"):
                     zip_ref.extract(member, tools_dir)
                     extracted_path = os.path.join(tools_dir, member)
-                    shutil.move(extracted_path, ffmpeg_exe)
+                    final_path = os.path.join(tools_dir, "ffmpeg.exe")
+                    shutil.move(extracted_path, final_path)
                     break
 
         os.environ["PATH"] += os.pathsep + tools_dir
 
+    else:
+        pass
+
+    if shutil.which("ffmpeg"):
+        return
+
+    sistema = platform.system()
+    if sistema == "Windows":
+        tools_dir = os.path.join(os.getcwd(), "tools")
+        os.makedirs(tools_dir, exist_ok=True)
+
+        ffmpeg_exe = os.path.join(tools_dir, "ffmpeg.exe")
+        if os.path.exists(ffmpeg_exe):
+            os.environ["PATH"] += os.pathsep + tools_dir
+            return
+
+        url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+        temp_zip = os.path.join(tempfile.gettempdir(), "ffmpeg.zip")
+
+        with requests.get(url, stream=True) as r:
+            with open(temp_zip, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+        with zipfile.ZipFile(temp_zip, "r") as zip_ref:
+            for member in zip_ref.namelist():
+                if member.endswith("ffmpeg.exe"):
+                    zip_ref.extract(member, tools_dir)
+                    extracted_path = os.path.join(tools_dir, member)
+                    final_path = os.path.join(tools_dir, "ffmpeg.exe")
+                    shutil.move(extracted_path, final_path)
+                    break
+
+        os.environ["PATH"] += os.pathsep + tools_dir
+
+    else:
+        pass
+    if shutil.which("ffmpeg"):
+        return
+
+    tools_dir = os.path.join(os.getcwd(), "tools")
+    os.makedirs(tools_dir, exist_ok=True)
+
+    ffmpeg_exe = os.path.join(tools_dir, "ffmpeg.exe")
+    if os.path.exists(ffmpeg_exe):
+        os.environ["PATH"] += os.pathsep + tools_dir
+        return
+
+    url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+    temp_zip = os.path.join(tempfile.gettempdir(), "ffmpeg.zip")
+
+    with requests.get(url, stream=True) as r:
+        with open(temp_zip, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+    with zipfile.ZipFile(temp_zip, "r") as zip_ref:
+        for member in zip_ref.namelist():
+            if member.endswith("ffmpeg.exe"):
+                zip_ref.extract(member, tools_dir)
+                extracted_path = os.path.join(tools_dir, member)
+                final_path = os.path.join(tools_dir, "ffmpeg.exe")
+                shutil.move(extracted_path, final_path)
+                break
+
+    os.environ["PATH"] += os.pathsep + tools_dir
+
 def obter_qualidades(link):
-    """Lista TODAS qualidades disponíveis do vídeo."""
+    comando = ["yt-dlp", "--no-check-certificate", "--force-ipv4", "-F", link]
+
+    processo = subprocess.Popen(
+        comando,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True
+    )
+
     qualidades = {"video": [], "audio": []}
-    ydl_opts = {'quiet': True, 'no_warnings': True, 'skip_download': True}
+    capturar = False
 
-    with YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(link, download=False)
+    for linha in processo.stdout:
+        linha = linha.strip()
+        print(f"DEBUG: {linha}")
+        if linha.startswith("ID") and "RESOLUTION" in linha:
+            capturar = True
+            continue
+        if capturar:
+            if linha == "":
+                break
+            partes = linha.split()
+            if len(partes) >= 3:
+                format_id = partes[0]
+                extension = partes[1]
+                resolution = partes[2]
+                if resolution.lower() == "audio" or "audio" in resolution.lower():
+                    qualidades["audio"].append((format_id, resolution, extension))
+                else:
+                    qualidades["video"].append((format_id, resolution, extension))
 
-    for f in info.get('formats', []):
-        if f.get('vcodec') != 'none' and f.get('acodec') == 'none':
-            # Somente vídeo (sem áudio)
-            qualidades["video"].append({
-                "format_id": f['format_id'],
-                "format": f"{f['ext']} - {f.get('format_note') or f.get('height', '?')}p - {f.get('fps', '?')}fps",
-                "resolution": f.get('resolution') or f.get('height'),
-            })
-        elif f.get('vcodec') == 'none' and f.get('acodec') != 'none':
-            # Somente áudio
-            qualidades["audio"].append({
-                "format_id": f['format_id'],
-                "format": f"{f['ext']} - {f.get('abr', '??')}kbps",
-            })
+    processo.wait()
+    print(f"DEBUG: Qualidades encontradas: {qualidades}")
     return qualidades
 
-def baixar_video_com_progresso(link, tipo_download, format_id):
-    """Baixa o vídeo ou áudio mostrando progresso."""
+def baixar_video_com_progresso(link, qualidade="720", tipo_download="video", pasta_destino="downloads", video_id=None, audio_id=None):
     garantir_ffmpeg_portatil()
-    pasta_destino = "downloads"
     os.makedirs(pasta_destino, exist_ok=True)
 
     output_template = os.path.join(pasta_destino, "%(title)s.%(ext)s")
+    comando = ["yt-dlp", "--no-check-certificate", "--force-ipv4"]
 
-    progresso_hook = []
+    if tipo_download == "video" and video_id:
+        comando += [
+            "-f", f"{video_id}+bestaudio[ext=m4a]/bestaudio",
+            "--merge-output-format", "mp4",
+            "-o", output_template,
+            link
+        ]
+    elif tipo_download == "audio" and audio_id:
+        comando += [
+            "-f", f"{audio_id}/bestaudio[ext=m4a]/bestaudio",
+            "-o", output_template,
+            link,
+            "--extract-audio",
+            "--audio-format", "mp3",
+            "--audio-quality", "192K"
+        ]
+    else:
+        comando += [
+            "-f",
+            f"bestaudio[ext=m4a]/bestaudio" if tipo_download == "audio" else f"bestvideo[height<={qualidade}]+bestaudio[ext=m4a]/bestaudio",
+            "--merge-output-format", "mp4" if tipo_download == "video" else "",
+            "-o", output_template,
+            link
+        ]
 
-    def hook(d):
-        if d['status'] == 'downloading':
-            total = d.get('total_bytes') or d.get('total_bytes_estimate', 1)
-            downloaded = d.get('downloaded_bytes', 0)
-            progresso = downloaded / total * 100
-            progresso_hook.append(progresso)
-        elif d['status'] == 'finished':
-            progresso_hook.append(100.0)
+    comando = [x for x in comando if x != ""]  
 
-    ydl_opts = {
-        'format': format_id,
-        'outtmpl': output_template,
-        'quiet': True,
-        'noplaylist': True,
-        'progress_hooks': [hook],
-    }
+    processo = subprocess.Popen(
+        comando,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        bufsize=1
+    )
 
-    if tipo_download == "audio":
-        ydl_opts['postprocessors'] = [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }]
-    
-    with YoutubeDL(ydl_opts) as ydl:
-        ydl.download([link])
+    progresso_atual = 0
 
-    for p in progresso_hook:
-        yield p
+    for linha in processo.stdout:
+        match = re.search(r"\[download\]\s+(\d{1,3}\.\d)%", linha)
+        if match:
+            progresso_atual = float(match.group(1))
+            yield progresso_atual
+
+    processo.wait()
+
+    yield 100.0
