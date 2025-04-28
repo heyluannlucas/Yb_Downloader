@@ -28,20 +28,17 @@ def obter_qualidades_cacheado(link):
     return obter_qualidades(link)
 
 def limpar_downloads():
-    """Remove todos os arquivos mp4/mp3 da pasta downloads."""
     for arquivo in os.listdir("downloads"):
         caminho = os.path.join("downloads", arquivo)
         if arquivo.endswith((".mp4", ".mp3")) and os.path.isfile(caminho):
             os.remove(caminho)
 
 def aplicar_tema():
-    """Aplica estilos globais e deixa o texto do dropdown branco."""
     st.markdown("""
         <style>
         body, .stApp {
             font-family: 'Helvetica Neue', sans-serif;
         }
-        /* Texto do dropdown sempre branco */
         div[data-baseweb="select"] * {
             color: white !important;
         }
@@ -51,7 +48,6 @@ def aplicar_tema():
         div[data-baseweb="option"] * {
             color: white !important;
         }
-        /* Melhorando botões */
         .stButton>button {
             background-color: #0078D4;
             color: white;
@@ -84,7 +80,7 @@ def main():
 
     st.title("🔵 YouTube Downloader")
 
-    link = st.text_input("📎 Cole o link do vídeo ou playlist:")
+    link = st.text_input("📌 Cole o link do vídeo ou playlist:")
 
     if link:
         thumb_url, titulo = pegar_info_video(link)
@@ -137,7 +133,7 @@ def main():
                     barra.progress(100)
                     status_texto.text("✅ Download Finalizado!")
 
-                    st.balloons()  # Animação 🎉
+                    st.balloons()
 
                     st.success("✅ Seus arquivos estão prontos:")
                     arquivos = os.listdir("downloads")
@@ -146,7 +142,7 @@ def main():
                             caminho = os.path.join("downloads", arquivo)
                             with open(caminho, "rb") as file:
                                 download = st.download_button(
-                                    label=f"🔽 Baixar {arquivo}",
+                                    label=f"🔽️ Baixar {arquivo}",
                                     data=file,
                                     file_name=arquivo,
                                     mime="video/mp4" if arquivo.endswith(".mp4") else "audio/mpeg",
@@ -154,7 +150,7 @@ def main():
                                 )
                             if download:
                                 st.success(f"✅ '{arquivo}' download iniciado! Limpando arquivo...")
-                                time.sleep(5)  # aguarda para garantir download
+                                time.sleep(5)
                                 if os.path.exists(caminho):
                                     os.remove(caminho)
                                     st.info(f"🗑️ '{arquivo}' removido do servidor!")
